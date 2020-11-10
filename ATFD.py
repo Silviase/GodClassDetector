@@ -1,7 +1,5 @@
 import ast
 from typing import Any
-import itertools
-
 
 class ATFDCalculator(ast.NodeVisitor):
     def __init__(self):

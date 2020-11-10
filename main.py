@@ -1,27 +1,15 @@
-import ast
-from typing import Any
+import networkx as nx
+import numpy as np
+import matplotlib.pyplot as plt
 
+g = nx.DiGraph()
 
-class PrintNodeVisitor(ast.NodeVisitor):
+edges = np.array([["hoge", 2],
+                  [5, "hoge"],
+                  ["hoge", "fuga"],
+                  ["fuga", "bar"], ])
 
-    def visit(self, node):
-        # print(ast.dump(node))
-        return super().visit(node)
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> Any:
-        return node
-
-
-class GodClassChecker():
-    def __init__(self, code):
-        self.AST = ast.parse(code)
-
-        self.TCC = None
-        self.ATFD = None
-        self.WMC = None
-
-    def isGodClass(self) -> bool:
-        if self.WMC >= 47 and self.ATFD > 5 and self.TCC < (1/3):
-            return True
-        return False
-
+g.add_edge(0, 1)
+g.add_edges_from(edges)
+nx.draw_networkx(g, node_size=1500)
+plt.show()

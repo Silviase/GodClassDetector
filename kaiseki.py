@@ -7,7 +7,7 @@ class PrintNodeVisitor(ast.NodeVisitor):
         self.name = None
 
     def visit(self, node):
-        # print(ast.dump(node))
+        print(node)
         return super().visit(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
@@ -19,7 +19,6 @@ class PrintNodeVisitor(ast.NodeVisitor):
             if isinstance(fs, ast.FunctionDef):
                 print(fs.name)
         print("-------")
-
         self.generic_visit(node)
         return node
 
@@ -41,20 +40,23 @@ class PrintNodeVisitor(ast.NodeVisitor):
         self.generic_visit(node)
         return node
 
+    def visit_Call(self, node: ast.Call) -> Any:
+        print(ast.dump(node))
+        if isinstance(node.func, ast.Attribute):
+            print("here!")
+            print("-----", node.func.value.id, " ", node.func.attr, "-------")
+        elif isinstance(node.func, ast.Name):
+            print("-----", node.func.id, "-------")
+        return node
+
+
+
 source = """
-class Calc():
-    val = 0
-    
-    def assign(self, x):
-        self.val=x
-        
-    def add(self, x):
-        self.val+=x
+class A():
+    pass
 
-    def ret(self, x):
-        return 0
-
-        
+class B():
+    pass
 """
 
 tree = ast.parse(source)
