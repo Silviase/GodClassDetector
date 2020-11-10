@@ -3,13 +3,16 @@ from typing import Any
 
 
 class PrintNodeVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.name = None
+
     def visit(self, node):
-        print(ast.dump(node))
+        # print(ast.dump(node))
         return super().visit(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
         print("-------")
-        print(ast.dump(node))
+        # print(ast.dump(node))
         print(node.name)
         print(len(node.body))
         for fs in node.body:
@@ -24,8 +27,19 @@ class PrintNodeVisitor(ast.NodeVisitor):
         print("-------")
         print("name: ", ast.dump(node))
         print("-------")
+        self.generic_visit(node)
         return node
 
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        self.name = node.name
+        self.generic_visit(node)
+        return node
+
+    def visit_Attribute(self, node: ast.Attribute) -> Any:
+        print("Method : ", self.name)
+        print(node.value.id, " <------> ", node.attr)
+        self.generic_visit(node)
+        return node
 
 source = """
 class Calc():
@@ -37,9 +51,9 @@ class Calc():
     def add(self, x):
         self.val+=x
 
-class Nothing():
-    def do_nothing(self):
-        return True and Truee
+    def ret(self, x):
+        return 0
+
         
 """
 

@@ -24,8 +24,10 @@ class WMCCounter(ast.NodeVisitor):
                              ast.While,
                              ast.If,
                              ast.IfExp,
-                             ast.BoolOp)):
+                             ast.BoolOp,
+                             ast.ExceptHandler)):
             self.cmp_dict[self.now] += 1
+        # generic_visitを行う
         for field, value in ast.iter_fields(node):
             if isinstance(value, list):
                 for item in value:
