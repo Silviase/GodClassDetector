@@ -1,5 +1,5 @@
 import ast
-from typing import Any
+from typing import Any, Dict
 import itertools
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -11,35 +11,46 @@ class TCCCalculator(ast.NodeVisitor):
         self.method_name = None
         self.call_access_graph = nx.DiGraph()
         self.class_set = set()
-        self.member_set = set()
-        self.method_set = set()
 
-    def calc_TCC(self) -> float:
-        direct_connected_method_pairs = self.count_dc_method_pairs()
-        total_methods = self.count_total_methods()
-        total_method_pairs = total_methods * (total_methods - 1) / 2.0
-        tcc = direct_connected_method_pairs / total_method_pairs
-        print("method pair :", total_method_pairs)
-        print("dc_pair :", direct_connected_method_pairs)
-        print("TCC :", tcc)
-        nx.draw_networkx(calc.call_access_graph,  font_size=8)
+        # Dict["class_name": {methods, member}]
+        self.class_methods_map = {}
+        self.class_member_map = {}
+
+    def calc_TCC(self) -> Dict[Any, float]:
+        direct_connected_method_pairs = {}  # {"class": int}
+        tcc = {}
+        for each_class in self.class_methods_map.keys():
+            # 各クラスについてDCなメソッドの組を数える
+            direct_connected_method_pairs[each_class] = self.count_dc_method_pairs(each_class)
+            # 各クラスについてメソッドの数を数える
+            total_methods = self.count_total_methods(each_class)
+            total_method_pairs = total_methods * (total_methods - 1) / 2.0
+            # それぞれのTCCを計算する
+            tcc[each_class] = direct_connected_method_pairs[each_class] / total_method_pairs if total_method_pairs > 0 else 0
+            print("dc_pair" ":", direct_connected_method_pairs[each_class])
+            print("TCC of", each_class, "=", tcc[each_class])
+
+        nx.draw_networkx(calc.call_access_graph, font_size=8)
         plt.show()
         return tcc
 
-    # TODO 各クラスにおいて計算するようにする
-    def count_dc_method_pairs(self) -> int:
-        print("method_set", str(self.method_set))
-        print("member_set", str(self.member_set))
-        method_pairs = list(itertools.combinations(self.method_set, 2))
+    def count_dc_method_pairs(self, each_class) -> int:
+        print("class_methods_map", str(self.class_methods_map))
+        print("member_set", str(self.class_member_map))
+
         pairs = 0
+        method_pairs = list(itertools.combinations(self.class_methods_map[each_class], 2))
+
+        # 各メソッドの組合せについて考える
         for method_pair in method_pairs:
-            method_fir = method_pair[0]
-            method_sec = method_pair[1]
+            method_fir = (each_class, method_pair[0])
+            method_sec = (each_class, method_pair[1])
             print("method pair", str(method_pair))
             flag = False
-            for member in self.member_set:
-                reachable = nx.single_target_shortest_path(self.call_access_graph, member)
-                print(reachable)
+            for member in self.class_member_map[each_class]:
+                reachable = nx.single_target_shortest_path(self.call_access_graph, (each_class, member))
+                print("reachable", str(reachable))
+                print(str((each_class, member)))
                 if method_fir in reachable and method_sec in reachable:
                     flag = True
                     break
@@ -47,12 +58,14 @@ class TCCCalculator(ast.NodeVisitor):
                 pairs += 1
         return pairs
 
-    def count_total_methods(self) -> int:
-        return len(self.method_set)
+    # classごとのメソッド数をreturn
+    def count_total_methods(self, class_name) -> int:
+        return len(self.class_methods_map[class_name])
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
         self.method_name = node.name
-        self.method_set.add((self.class_name, self.method_name))
+        self.class_methods_map.setdefault(self.class_name, set())
+        self.class_methods_map[self.class_name].add(self.method_name)
         self.generic_visit(node)
         return node
 
@@ -70,7 +83,8 @@ class TCCCalculator(ast.NodeVisitor):
             member_class = self.class_name
 
         if not self.method_name.startswith("__"):
-            self.member_set.add((member_class, node.attr))
+            self.class_member_map.setdefault(member_class, set())
+            self.class_member_map[member_class].add(node.attr)
             self.call_access_graph.add_edge((member_class, self.method_name),
                                             (member_class, node.attr))
         self.generic_visit(node)
@@ -125,5 +139,3 @@ tree = ast.parse(source)
 calc = TCCCalculator()
 calc.visit(tree)
 calc.calc_TCC()
-
-
