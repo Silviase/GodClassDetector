@@ -8,7 +8,7 @@ class WMCCounter(ast.NodeVisitor):
         self.now = None
 
     def visit(self, node):
-        print(ast.dump(node))
+        # print(ast.dump(node))
         return super().visit(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
@@ -41,31 +41,18 @@ class WMCCounter(ast.NodeVisitor):
         return self.cmp_dict
 
     def calc_wmc(self) -> int:
+        print("WMC :", str(self.cmp_dict))
         return sum(self.cmp_dict.values())
 
 
-source = """
-class Calc():
+def main():
+    source = ""
+    tree = ast.parse(source)
+    counter = WMCCounter()
+    counter.visit(tree)
+    print(counter.get_cmp_list())
+    print(counter.calc_wmc())
 
-    def __init__(self):
-        self.val = 0
-                
-    def abs(x):
-        if x < 0:
-                if True:
-                    return -x
-                return -x
-        return x
 
-class Hoge():
-    def same(x, y):
-        if x == y and y == x:
-            return True
-        return False
-"""
-
-tree = ast.parse(source)
-counter = WMCCounter()
-counter.visit(tree)
-print(counter.get_cmp_list())
-print(counter.calc_wmc())
+if __name__ == "__main__":
+    main()

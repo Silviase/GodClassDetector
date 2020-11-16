@@ -26,17 +26,28 @@ class TCCCalculator(ast.NodeVisitor):
             total_methods = self.count_total_methods(each_class)
             total_method_pairs = total_methods * (total_methods - 1) / 2.0
             # それぞれのTCCを計算する
-            tcc[each_class] = direct_connected_method_pairs[each_class] / total_method_pairs if total_method_pairs > 0 else 0
-            print("dc_pair" ":", direct_connected_method_pairs[each_class])
-            print("TCC of", each_class, "=", tcc[each_class])
+            tcc[each_class] = direct_connected_method_pairs[
+                                  each_class] / total_method_pairs if total_method_pairs > 0 else 0
+            # print("dc_pair" ":", direct_connected_method_pairs[each_class])
+            # print("TCC of", each_class, "=", tcc[each_class])
 
-        nx.draw_networkx(calc.call_access_graph, font_size=8)
-        plt.show()
+        self.draw()
+        print("TCC :", str(tcc))
         return tcc
 
+    def draw(self):
+        G = self.call_access_graph
+        plt.figure(figsize=(30, 30))
+        pos = nx.spring_layout(G, k=0.05)
+
+        nx.draw_networkx_nodes(G, pos, node_color="b", alpha=0.6)
+        nx.draw_networkx_labels(G, pos, font_size=20, font_family="Yu Gothic", font_weight="bold")
+        nx.draw_networkx_edges(G, pos, edge_color='c')
+        plt.show()
+
     def count_dc_method_pairs(self, each_class) -> int:
-        print("class_methods_map", str(self.class_methods_map))
-        print("member_set", str(self.class_member_map))
+        # print("class_methods_map", str(self.class_methods_map))
+        # print("member_set", str(self.class_member_map))
 
         pairs = 0
         method_pairs = list(itertools.combinations(self.class_methods_map[each_class], 2))
@@ -45,12 +56,12 @@ class TCCCalculator(ast.NodeVisitor):
         for method_pair in method_pairs:
             method_fir = (each_class, method_pair[0])
             method_sec = (each_class, method_pair[1])
-            print("method pair", str(method_pair))
+            # print("method pair", str(method_pair))
             flag = False
             for member in self.class_member_map[each_class]:
                 reachable = nx.single_target_shortest_path(self.call_access_graph, (each_class, member))
-                print("reachable", str(reachable))
-                print(str((each_class, member)))
+                # print("reachable", str(reachable))
+                # print(str((each_class, member)))
                 if method_fir in reachable and method_sec in reachable:
                     flag = True
                     break
@@ -71,71 +82,90 @@ class TCCCalculator(ast.NodeVisitor):
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
         self.class_name = node.name
+        self.method_name = None
         self.class_set.add(node.name)
         self.generic_visit(node)
         return node
 
     def visit_Attribute(self, node: ast.Attribute) -> Any:
-        # print("Method : ", self.name)
-        # print(node.value.id, " <------> ", node.attr)
-        member_class = node.value.id
-        if member_class == "self":
-            member_class = self.class_name
+        if self.method_name is None:
+            # 継承するスーパークラスを表す。ここは無視
+            self.generic_visit(node)
+            return node
 
-        if not self.method_name.startswith("__"):
-            self.class_member_map.setdefault(member_class, set())
-            self.class_member_map[member_class].add(node.attr)
-            self.call_access_graph.add_edge((member_class, self.method_name),
-                                            (member_class, node.attr))
-        self.generic_visit(node)
+        attr_belonging = node.value
+        if isinstance(attr_belonging, ast.Name):
+            member_class = attr_belonging.id
+            if member_class == "self":
+                member_class = self.class_name
+
+            if member_class in self.class_set:
+                # magic_methodは無視する
+                if not self.method_name.startswith("__"):
+                    self.class_member_map.setdefault(member_class, set())
+                    self.class_member_map[member_class].add(node.attr)
+                    # print("Attr:", str((member_class, self.method_name)), str((member_class, node.attr)))
+                    self.call_access_graph.add_edge((self.class_name, self.method_name), (member_class, node.attr))
+                return member_class
+
+        else:
+            self.generic_visit(node)
         return node
 
     def visit_Call(self, node: ast.Call) -> Any:
-        if isinstance(node.func, ast.Attribute):
-            call_class = node.func.value.id
-            if call_class == "self":
-                call_class = self.class_name
-            self.call_access_graph.add_edge((self.class_name, self.method_name),
-                                            (call_class, node.func.attr))
-        elif isinstance(node.func, ast.Name):
-            self.call_access_graph.add_edge((self.class_name, self.method_name),
-                                            node.func.id)
+        # print(ast.dump(node))
+        # node.funcのType次第で扱いが変わる
+        if isinstance(node.func, ast.Name):
+            # メソッド名(変数名)のような形
+            self.call_access_graph.add_edge((self.class_name, self.method_name), node.func.id)
+        elif isinstance(node.func, ast.Attribute):
+            # ~~~.メソッド名()という形
+            # print(ast.dump(node.func))
+            if isinstance(node.func.value, ast.Name):
+                called_func = node.func.attr
+                call_class = node.func.value.id
+                if call_class == "self":
+                    call_class = self.class_name
+                self.call_access_graph.add_edge((self.class_name, self.method_name),
+                                                (call_class, called_func))
+
+        self.generic_visit(node)
         return node
 
 
-source = """
-class Calc():
-    def __init__():
-        self.m1 = 0
-        self.m2 = 0
-        self.m3 = 0
-        self.m4 = 0
-        self.m5 = 0
-        
-    def f1():
-        self.m1 = 1
-        self.m2 = 2
-    
-    def f2():
-        self.f1()
-        self.f3()
-        self.m4 = 4
-    
-    def f3():
-        while(False):
+if __name__ == '__main__':
+    source = """
+    class Calc():
+        def __init__():
+            self.m1 = 0
+            self.m2 = 0
+            self.m3 = 0
+            self.m4 = 0
+            self.m5 = 0
+
+        def f1():
+            self.m1 = 1
+            self.m2 = 2
+
+        def f2():
+            self.f1()
             self.f3()
-        self.m5 = 5
-        
-    def f4():
-        Math.gcd(1, 2)
-        self.m5 = 5
+            self.m4 = 4
 
-class Math():
-    def gcd(x, y):
-        return 0
-"""
+        def f3():
+            while(False):
+                self.f3()
+            self.m5 = 5
 
-tree = ast.parse(source)
-calc = TCCCalculator()
-calc.visit(tree)
-calc.calc_TCC()
+        def f4():
+            Math.gcd(1, 2)
+            self.m5 = 5
+
+    class Math():
+        def gcd(x, y):
+            return 0
+    """
+    tree = ast.parse(source)
+    calc = TCCCalculator()
+    calc.visit(tree)
+    calc.calc_TCC()
